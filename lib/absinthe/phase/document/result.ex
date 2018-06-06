@@ -22,7 +22,9 @@ defmodule Absinthe.Phase.Document.Result do
           {:validation_failed, errors}
       end
 
-    format_result(result)
+    result
+    |> format_result()
+    |> maybe_add_continuations(blueprint.execution.result)
   end
 
   defp format_result(:execution_failed) do
@@ -126,4 +128,9 @@ defmodule Absinthe.Phase.Document.Result do
   end
 
   defp format_location(_), do: []
+
+  defp maybe_add_continuations(result, %{continuations: continuations}) when continuations != [],
+  do: Map.put(result, :continuation, continuations)
+
+  defp maybe_add_continuations(result, _), do: result
 end

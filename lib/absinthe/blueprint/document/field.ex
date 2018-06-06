@@ -17,7 +17,9 @@ defmodule Absinthe.Blueprint.Document.Field do
     source_location: nil,
     type_conditions: [],
     schema_node: nil,
-    complexity: nil
+    complexity: nil,
+    # Added by directives
+    dynamic_middleware: []
   ]
 
   @type t :: %__MODULE__{
@@ -30,6 +32,7 @@ defmodule Absinthe.Blueprint.Document.Field do
           source_location: nil | Blueprint.SourceLocation.t(),
           type_conditions: [Blueprint.TypeReference.Name],
           schema_node: Type.t(),
-          complexity: nil | non_neg_integer
+          complexity: nil | non_neg_integer,
+          dynamic_middleware: []
         }
 end
