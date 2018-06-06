@@ -179,7 +179,7 @@ defmodule Absinthe.Phase.Document.Execution.Resolution do
   end
 
   # bp_field needs to have a concrete schema node, AKA no unions or interfaces
-  defp do_resolve_field(res, source, path) do
+  def do_resolve_field(res, source, path) do
     res
     |> reduce_resolution
     |> case do
@@ -217,7 +217,7 @@ defmodule Absinthe.Phase.Document.Execution.Resolution do
         errors: [],
         source: source,
         parent_type: parent_type,
-        middleware: middleware,
+        middleware: bp_field.dynamic_middleware ++ middleware,
         definition: bp_field,
         arguments: args
     }
