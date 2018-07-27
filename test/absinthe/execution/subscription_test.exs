@@ -112,6 +112,25 @@ defmodule Absinthe.Execution.SubscriptionTest do
           {:ok, topic: ["topic_1", "topic_2", "topic_3"]}
         end
       end
+
+      field :catchup, :user do
+        arg :client_id, non_null(:id)
+        arg :catchup_data, list_of(:string)
+
+        config fn args, _ ->
+          {
+            :ok,
+            topic: args.client_id,
+            catchup: fn ->
+              Enum.each(args.catchup_data,
+                &Absinthe.Subscription.publish(
+                  PubSub,
+                  %{id: "some_id", name: &1},
+                  [catchup: args.client_id]))
+            end
+          }
+        end
+      end
     end
 
     mutation do
@@ -404,11 +423,38 @@ defmodule Absinthe.Execution.SubscriptionTest do
     assert_receive(:batch_get_group)
   end
 
+  @query """
+  subscription ($clientId: ID!, $catchupData: [String]) {
+    catchup(clientId: $clientId, catchupData: $catchupData) {
+      name
+    }
+  }
+  """
+  test "subscription with catchup" do
+    client_id = "xyz"
+    catchup_data = ["name1", "name2"]
+
+    assert {:more, %{"subscribed" => topic, continuation: continuation}} =
+             run(
+               @query,
+               Schema,
+               variables: %{
+                 "catchupData" => catchup_data,
+                 "clientId" => client_id
+               }
+             )
+
+    assert {:ok, %{}} = Absinthe.continue(continuation)
+
+    assert_receive({:broadcast, %{topic: ^topic, result: %{data: %{"catchup" => %{"name" => "name1"}}}}})
+    assert_receive({:broadcast, %{topic: ^topic, result: %{data: %{"catchup" => %{"name" => "name2"}}}}})
+  end
+
   defp run(query, schema, opts \\ []) do
     opts = Keyword.update(opts, :context, %{pubsub: PubSub}, &Map.put(&1, :pubsub, PubSub))
 
     case Absinthe.run(query, schema, opts) do
-      {:ok, %{"subscribed" => topic}} = val ->
+      {response, %{"subscribed" => topic}} = val when response == :ok or response == :more ->
         PubSub.subscribe(topic)
         val
 
