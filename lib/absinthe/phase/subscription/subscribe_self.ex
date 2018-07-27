@@ -24,11 +24,12 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
 
     %{selections: [field]} = op
 
-    with {:ok, field_keys} <- get_field_keys(field, context) do
+    with {:ok, field_keys, catchup} <- get_field_keys(field, context) do
       for field_key <- field_keys,
           do: Absinthe.Subscription.subscribe(pubsub, field_key, doc_id, blueprint)
 
-      {:replace, blueprint, [{Phase.Subscription.Result, topic: doc_id}]}
+      {:replace, blueprint, [{Phase.Subscription.Result,
+                              topic: doc_id, catchup: catchup}]}
     else
       {:error, error} ->
         blueprint = update_in(blueprint.execution.validation_errors, &[error | &1])
@@ -63,11 +64,10 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
 
     case config do
       {:ok, config} ->
-        field_keys =
-          find_keys!(config)
-          |> Enum.map(fn key -> {name, key} end)
+        {keys, catchup} = find_keys!(config)
+        field_keys = Enum.map(keys, fn key -> {name, key} end)
 
-        {:ok, field_keys}
+        {:ok, field_keys, catchup}
 
       {:error, msg} ->
         error = %Phase.Error{
@@ -106,8 +106,12 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
         """
 
       val ->
-        List.wrap(val)
-        |> Enum.map(&to_string/1)
+        topics = List.wrap(val)
+                 |> Enum.map(&to_string/1)
+
+        catchup = config[:catchup] || nil
+
+        {topics, catchup}
     end
   end
 
