@@ -8,28 +8,36 @@ defmodule Absinthe.Phase.Subscription.Result do
   alias Absinthe.Blueprint.Continuation
 
   @spec run(any, Keyword.t()) :: {:ok, Blueprint.t()}
-  def run(blueprint, [topic: topic, catchup: catchup]) do
+  def run(blueprint, options) do
+    topic = Keyword.get(options, :topic)
+    catchup = Keyword.get(options, :catchup)
     result = %{"subscribed" => topic}
     case catchup do
       nil ->
         {:ok, put_in(blueprint.result, result)}
 
-      fun when is_function(fun, 0) ->
-        acc =
-          blueprint.execution.acc
-          |> Map.put(:catchup_fun, fun)
-          |> Map.put(:topic, topic)
+      catchup_fun when is_function(catchup_fun, 0) ->
+        {:ok, catchup_results} = catchup_fun.()
 
-        blueprint = put_in(blueprint.execution.acc, acc)
+        result =
+          if catchup_results != [] do
+            continuations =
+              Enum.map(catchup_results, fn cr ->
+                %Continuation{
+                  phase_input: blueprint,
+                  pipeline: [
+                    {Absinthe.Phase.Subscription.Catchup, [catchup_result: cr]},
+                    {Absinthe.Phase.Document.Execution.Resolution, options},
+                    Absinthe.Phase.Document.Result
+                  ]
+                }
+              end)
 
-        continuation = %Continuation{
-          phase_input: blueprint,
-          pipeline: [
-            Absinthe.Phase.Subscription.Catchup,
-          ]
-        }
+            Map.put(result, :continuation, continuations)
+          else
+            result
+          end
 
-        result = Map.put(result, :continuation, [continuation])
         {:ok, put_in(blueprint.result, result)}
 
       val ->

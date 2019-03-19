@@ -2,9 +2,7 @@ defmodule Absinthe.Phase.Subscription.Catchup do
   @moduledoc false
 
   @spec run(any(), Keyword.t()) :: Phase.result_t()
-  def run(blueprint, _options \\ []) do
-    :ok = blueprint.execution.acc.catchup_fun.()
-
-    {:ok, blueprint}
+  def run(blueprint, [catchup_result: cr]) do
+    {:ok, put_in(blueprint.execution.root_value, cr)}
   end
 end
