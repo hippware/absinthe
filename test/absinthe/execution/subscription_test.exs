@@ -122,11 +122,7 @@ defmodule Absinthe.Execution.SubscriptionTest do
             :ok,
             topic: args.client_id,
             catchup: fn ->
-              Enum.each(args.catchup_data,
-                &Absinthe.Subscription.publish(
-                  PubSub,
-                  %{id: "some_id", name: &1},
-                  [catchup: args.client_id]))
+              {:ok, Enum.map(args.catchup_data, &(%{id: "some_id", name: &1}))}
             end
           }
         end
@@ -444,10 +440,13 @@ defmodule Absinthe.Execution.SubscriptionTest do
                }
              )
 
-    assert {:ok, %{}} = Absinthe.continue(continuation)
+    assert {:more, %{
+      data: %{"catchup" => %{"name" => "name1"}},
+      continuation: continuation}}
+      = Absinthe.continue(continuation)
 
-    assert_receive({:broadcast, %{topic: ^topic, result: %{data: %{"catchup" => %{"name" => "name1"}}}}})
-    assert_receive({:broadcast, %{topic: ^topic, result: %{data: %{"catchup" => %{"name" => "name2"}}}}})
+    assert {:ok, %{data: %{"catchup" => %{"name" => "name2"}}}}
+    = Absinthe.continue(continuation)
   end
 
   defp run(query, schema, opts \\ []) do

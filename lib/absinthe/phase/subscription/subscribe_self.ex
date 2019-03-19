@@ -29,7 +29,7 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
           do: Absinthe.Subscription.subscribe(pubsub, field_key, doc_id, blueprint)
 
       {:replace, blueprint, [{Phase.Subscription.Result,
-                              topic: doc_id, catchup: catchup}]}
+                              [topic: doc_id, catchup: catchup] ++ options}]}
     else
       {:error, error} ->
         blueprint = update_in(blueprint.execution.validation_errors, &[error | &1])
