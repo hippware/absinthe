@@ -24,7 +24,8 @@ defmodule Absinthe.Mixfile do
         extras: extras(),
         groups_for_extras: groups_for_extras()
       ],
-      deps: deps()
+      deps: deps(),
+      dialyzer: [plt_add_apps: [:mix, :dataloader, :decimal]]
     ]
   end
 
@@ -57,17 +58,18 @@ defmodule Absinthe.Mixfile do
   defp elixirc_paths(_), do: ["lib"]
 
   def application do
-    [applications: [:logger]]
+    [extra_applications: [:logger]]
   end
 
   defp deps do
     [
-      {:benchee, ">= 0.0.0", only: :dev},
-      {:nimble_parsec, "~> 0.4"},
+      {:nimble_parsec, "~> 0.5"},
+      {:telemetry, "~> 0.4.0"},
       {:dataloader, "~> 1.0.0", optional: true},
-      {:ex_doc, "~> 0.14", only: :dev},
-      {:dialyze, "~> 0.2", only: :dev},
       {:decimal, "~> 1.0", optional: true},
+      {:ex_doc, "~> 0.20", only: :dev},
+      {:benchee, ">= 0.0.0", only: :dev},
+      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev], runtime: false},
       {:phoenix_pubsub, ">= 0.0.0", only: :test},
       {:mix_test_watch, "~> 0.4.1", only: [:test, :dev]}
     ]
@@ -160,7 +162,8 @@ defmodule Absinthe.Mixfile do
       ],
       Subscriptions: [
         Absinthe.Subscription,
-        Absinthe.Subscription.Pubsub
+        Absinthe.Subscription.Pubsub,
+        Absinthe.Subscription.Local
       ],
       Extensibility: [
         Absinthe.Pipeline,

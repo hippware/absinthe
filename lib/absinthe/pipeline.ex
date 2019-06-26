@@ -63,6 +63,8 @@ defmodule Absinthe.Pipeline do
 
     [
       # Parse Document
+      Phase.Init,
+      {Phase.Telemetry, [:execute, :operation, :start]},
       {Phase.Parse, options},
       # Convert to Blueprint
       {Phase.Blueprint, options},
@@ -99,7 +101,7 @@ defmodule Absinthe.Pipeline do
       Phase.Document.MissingLiterals,
       Phase.Document.Arguments.FlagInvalid,
       # Validate Full Document
-      Phase.Validation.KnownDirectives,
+      Phase.Document.Validation.KnownDirectives,
       Phase.Document.Validation.ScalarLeafs,
       Phase.Document.Validation.VariablesAreInputTypes,
       Phase.Document.Validation.ArgumentsOfCorrectType,
@@ -123,25 +125,42 @@ defmodule Absinthe.Pipeline do
       {Phase.Document.Execution.Resolution, options},
       Phase.Document.Execution.DeferFields,
       # Format Result
-      Phase.Document.Result
+      Phase.Document.Result,
+      {Phase.Telemetry, [:execute, :operation, options]}
     ]
   end
 
+  @default_prototype_schema Absinthe.Schema.Prototype
+
   @spec for_schema(nil | Absinthe.Schema.t()) :: t
   @spec for_schema(nil | Absinthe.Schema.t(), Keyword.t()) :: t
-  def for_schema(schema, _options \\ []) do
+  def for_schema(schema, options \\ []) do
+    options =
+      options
+      |> Enum.reject(fn {_, v} -> is_nil(v) end)
+      |> Keyword.put(:schema, schema)
+      |> Keyword.put_new(:prototype_schema, @default_prototype_schema)
+
     [
-      Phase.Schema.NormalizeReferences,
-      {Phase.Schema.Decorate, [schema: schema]},
       Phase.Schema.TypeImports,
+      Phase.Schema.ApplyDeclaration,
+      Phase.Schema.Introspection,
+      {Phase.Schema.Hydrate, options},
+      Phase.Schema.NormalizeReferences,
+      Phase.Schema.Arguments.Normalize,
+      {Phase.Schema, options},
       Phase.Schema.Validation.TypeNamesAreUnique,
       Phase.Schema.Validation.TypeReferencesExist,
       Phase.Schema.Validation.TypeNamesAreReserved,
       # This phase is run once now because a lot of other
       # validations aren't possible if type references are invalid.
-      Phase.Schema.Validation.Result,
       Phase.Schema.Validation.NoCircularFieldImports,
+      Phase.Schema.Validation.Result,
       Phase.Schema.FieldImports,
+      Phase.Schema.Validation.KnownDirectives,
+      {Phase.Schema.Arguments.Parse, options},
+      Phase.Schema.Arguments.Data,
+      Phase.Schema.Directives,
       Phase.Schema.Validation.DefaultEnumValuePresent,
       Phase.Schema.Validation.InputOuputTypesCorrectlyPlaced,
       Phase.Schema.Validation.InterfacesMustResolveTypes,
@@ -153,7 +172,7 @@ defmodule Absinthe.Pipeline do
       Phase.Schema.Validation.Result,
       Phase.Schema.Build,
       Phase.Schema.InlineFunctions,
-      {Phase.Schema.Compile, [module: schema]}
+      {Phase.Schema.Compile, options}
     ]
   end
 

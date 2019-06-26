@@ -4,7 +4,8 @@ defmodule Absinthe.Schema.Notation.SDL do
   @doc """
   Parse definitions from SDL source
   """
-  @spec parse(sdl :: String.t(), module, map(), Keyword.t()) ::
+
+  @spec parse(sdl :: String.t(), module(), map(), Keyword.t()) ::
           {:ok, [Absinthe.Blueprint.Schema.t()]} | {:error, String.t()}
   def parse(sdl, module, ref, opts) do
     with {:ok, doc} <- Absinthe.Phase.Parse.run(sdl) do
@@ -29,8 +30,26 @@ defmodule Absinthe.Schema.Notation.SDL do
     end
   end
 
+  defp put_ref(%{fields: fields, directives: directives} = node, ref, opts) do
+    %{
+      node
+      | fields: Enum.map(fields, &put_ref(&1, ref, opts)),
+        directives: Enum.map(directives, &put_ref(&1, ref, opts))
+    }
+    |> do_put_ref(ref, opts)
+  end
+
   defp put_ref(%{fields: fields} = node, ref, opts) do
     %{node | fields: Enum.map(fields, &put_ref(&1, ref, opts))}
+    |> do_put_ref(ref, opts)
+  end
+
+  defp put_ref(%{arguments: args, directives: directives} = node, ref, opts) do
+    %{
+      node
+      | arguments: Enum.map(args, &put_ref(&1, ref, opts)),
+        directives: Enum.map(directives, &put_ref(&1, ref, opts))
+    }
     |> do_put_ref(ref, opts)
   end
 
@@ -39,8 +58,8 @@ defmodule Absinthe.Schema.Notation.SDL do
     |> do_put_ref(ref, opts)
   end
 
-  defp put_ref(%{directives: dirs} = node, ref, opts) do
-    %{node | directives: Enum.map(dirs, &put_ref(&1, ref, opts))}
+  defp put_ref(%{directives: directives} = node, ref, opts) do
+    %{node | directives: Enum.map(directives, &put_ref(&1, ref, opts))}
     |> do_put_ref(ref, opts)
   end
 
@@ -53,7 +72,11 @@ defmodule Absinthe.Schema.Notation.SDL do
           ref
 
         path ->
-          put_in(ref.location, %{file: path, line: node.source_location.line})
+          put_in(ref.location, %{
+            file: {:unquote, [], [path]},
+            line: node.source_location.line,
+            column: node.source_location.column
+          })
       end
 
     %{node | __reference__: ref}

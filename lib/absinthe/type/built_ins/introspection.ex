@@ -77,15 +77,24 @@ defmodule Absinthe.Type.BuiltIns.Introspection do
 
   enum :__directive_location,
     values: [
-      # OPERATIONS
       :query,
       :mutation,
       :subscription,
       :field,
       :fragment_definition,
       :fragment_spread,
-      :inline_fragment
-      # TODO: Schema definitions to support Schema input
+      :inline_fragment,
+      :schema,
+      :scalar,
+      :object,
+      :field_definition,
+      :interface,
+      :union,
+      :enum,
+      :enum_value,
+      :input_object,
+      :argument_definition,
+      :input_field_definition
     ]
 
   object :__type do
@@ -110,10 +119,15 @@ defmodule Absinthe.Type.BuiltIns.Introspection do
           result =
             fields
             |> Enum.flat_map(fn {_, %{deprecation: is_deprecated} = field} ->
-              if !is_deprecated || (is_deprecated && show_deprecated) do
-                [field]
-              else
-                []
+              cond do
+                Absinthe.Type.introspection?(field) ->
+                  []
+
+                !is_deprecated || (is_deprecated && show_deprecated) ->
+                  [field]
+
+                true ->
+                  []
               end
             end)
 

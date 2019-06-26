@@ -92,14 +92,16 @@ defmodule Absinthe.Schema do
   ```
   """
 
-  defmacro __using__(_opt) do
+  defmacro __using__(opts) do
     Module.register_attribute(__CALLER__.module, :pipeline_modifier,
       accumulate: true,
       persist: true
     )
 
+    Module.register_attribute(__CALLER__.module, :prototype_schema, persist: true)
+
     quote do
-      use Absinthe.Schema.Notation
+      use Absinthe.Schema.Notation, unquote(opts)
       import unquote(__MODULE__), only: :macros
 
       @after_compile unquote(__MODULE__)
@@ -109,6 +111,7 @@ defmodule Absinthe.Schema do
       defdelegate __absinthe_types__(), to: __MODULE__.Compiled
       defdelegate __absinthe_directives__(), to: __MODULE__.Compiled
       defdelegate __absinthe_interface_implementors__(), to: __MODULE__.Compiled
+      defdelegate __absinthe_prototype_schema__(), to: __MODULE__.Compiled
 
       def __absinthe_lookup__(name) do
         __absinthe_type__(name)
@@ -130,11 +133,11 @@ defmodule Absinthe.Schema do
       end
 
       @doc false
-      def decorations(node, ancestors) do
+      def hydrate(_node, _ancestors) do
         []
       end
 
-      defoverridable(context: 1, middleware: 3, plugins: 0, decorations: 2)
+      defoverridable(context: 1, middleware: 3, plugins: 0, hydrate: 2)
     end
   end
 
@@ -285,7 +288,14 @@ defmodule Absinthe.Schema do
   end
 
   def __after_compile__(env, _) do
-    pipeline = Absinthe.Pipeline.for_schema(env.module)
+    prototype_schema =
+      env.module
+      |> Module.get_attribute(:prototype_schema)
+
+    pipeline =
+      Absinthe.Pipeline.for_schema(env.module,
+        prototype_schema: prototype_schema
+      )
 
     pipeline =
       env.module
@@ -325,10 +335,12 @@ defmodule Absinthe.Schema do
   end
 
   @doc """
-  Replace the default middleware
+  Replace the default middleware.
 
   ## Examples
+
   Replace the default for all fields with a string lookup instead of an atom lookup:
+
   ```
   def middleware(middleware, field, object) do
     new_middleware = {Absinthe.Middleware.MapGet, to_string(field.identifier)}
@@ -348,6 +360,120 @@ defmodule Absinthe.Schema do
       end
     end)
   end
+
+  @doc """
+  Used to define the list of plugins to run before and after resolution.
+
+  Plugins are modules that implement the `Absinthe.Plugin` behaviour. These modules
+  have the opportunity to run callbacks before and after the resolution of the entire
+  document, and have access to the resolution accumulator.
+
+  Plugins must be specified by the schema, so that Absinthe can make sure they are
+  all given a chance to run prior to resolution.
+  """
+  @callback plugins() :: [Absinthe.Plugin.t()]
+
+  @doc """
+  Used to apply middleware on all or a group of fields based on pattern matching.
+
+  It is passed the existing middleware for a field, the field itself, and the object
+  that the field is a part of.
+
+  ## Examples
+
+  Adding a `HandleChangesetError` middleware only to mutations:
+
+  ```
+  # if it's a field for the mutation object, add this middleware to the end
+  def middleware(middleware, _field, %{identifier: :mutation}) do
+    middleware ++ [MyAppWeb.Middleware.HandleChangesetErrors]
+  end
+
+  # if it's any other object keep things as is
+  def middleware(middleware, _field, _object), do: middleware
+  ```
+  """
+  @callback middleware([Absinthe.Middleware.spec(), ...], Type.Field.t(), Type.Object.t()) :: [
+              Absinthe.Middleware.spec(),
+              ...
+            ]
+
+  @doc """
+  Used to set some values in the context that it may need in order to run.
+
+  ## Examples
+
+  Setup dataloader:
+
+  ```
+  def context(context) do
+    loader =
+      Dataloader.new
+      |> Dataloader.add_source(Blog, Blog.data())
+
+      Map.put(context, :loader, loader)
+  end
+  ```
+  """
+  @callback context(map) :: map
+
+  @doc """
+  Used to hydrate the schema with dynamic attributes.
+
+  While this is normally used to add resolvers, etc, to schemas
+  defined using `import_sdl/1` and `import_sdl2`, it can also be
+  used in schemas defined using other macros.
+
+  The function is passed the blueprint definition node as the first
+  argument and its ancestors in a list (with its parent node as the
+  head) as its second argument.
+
+  See the `Absinthe.Phase.Schema.Hydrate` implementation of
+  `Absinthe.Schema.Hydrator` callbacks to see what hydration
+  values can be returned.
+
+  ## Examples
+
+  Add a resolver for a field:
+
+  ```
+  def hydrate(%Absinthe.Blueprint.Schema.FieldDefinition{identifier: :health}, [%Absinthe.Blueprint.Schema.ObjectTypeDefinition{identifier: :query} | _]) do
+    {:resolve, &__MODULE__.health/3}
+  end
+
+  # Resolver implementation:
+  def health(_, _, _), do: {:ok, "alive!"}
+  ```
+
+  Note that the values provided must be macro-escapable; notably, anonymous functions cannot
+  be used.
+
+  You can, of course, omit the struct names for brevity:
+
+  ```
+  def hydrate(%{identifier: :health}, [%{identifier: :query} | _]) do
+    {:resolve, &__MODULE__.health/3}
+  end
+  ```
+
+  Add a description to a type:
+
+  ```
+  def hydrate(%Absinthe.Blueprint.Schema.ObjectTypeDefinition{identifier: :user}, _) do
+    {:description, "A user"}
+  end
+  ```
+
+  If you define `hydrate/2`, don't forget to include a fallback, e.g.:
+
+  ```
+  def hydrate(_node, _ancestors), do: []
+  ```
+  """
+  @callback hydrate(
+              node :: Absinthe.Blueprint.Schema.t(),
+              ancestors :: [Absinthe.Blueprint.Schema.t()]
+            ) :: Absinthe.Schema.Hydrator.hydration()
 
   def lookup_directive(schema, name) do
     schema.__absinthe_directive__(name)
@@ -405,6 +531,7 @@ defmodule Absinthe.Schema do
     |> Enum.flat_map(&Type.referenced_types(&1, schema))
     |> MapSet.new()
     |> Enum.map(&Schema.lookup_type(schema, &1))
+    |> Enum.filter(&(!Type.introspection?(&1)))
   end
 
   @doc """

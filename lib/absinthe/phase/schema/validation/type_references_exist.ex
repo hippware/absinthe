@@ -86,9 +86,13 @@ defmodule Absinthe.Phase.Schema.Validation.TypeReferencesExist do
   end
 
   defp unwrap(type) do
-    type
-    |> Absinthe.Blueprint.TypeReference.unwrap()
-    |> unwrap
+    unwrap_type = Absinthe.Blueprint.TypeReference.unwrap(type)
+
+    if unwrap_type == type do
+      type
+    else
+      unwrap(unwrap_type)
+    end
   end
 
   defp error(thing, type) do
@@ -96,7 +100,7 @@ defmodule Absinthe.Phase.Schema.Validation.TypeReferencesExist do
 
     %Absinthe.Phase.Error{
       message: """
-      #{artifact_name} #{inspect(type)} is not defined in your schema.
+      In #{artifact_name}, #{inspect(type)} is not defined in your schema.
 
       Types must exist if referenced.
       """,

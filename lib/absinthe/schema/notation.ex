@@ -4,7 +4,7 @@ defmodule Absinthe.Schema.Notation do
 
   Module.register_attribute(__MODULE__, :placement, accumulate: true)
 
-  defmacro __using__(_opts) do
+  defmacro __using__(import_opts \\ [only: :macros]) do
     Module.register_attribute(__CALLER__.module, :absinthe_blueprint, accumulate: true)
     Module.register_attribute(__CALLER__.module, :absinthe_desc, accumulate: true)
     put_attr(__CALLER__.module, %Absinthe.Blueprint{schema: __CALLER__.module})
@@ -20,7 +20,7 @@ defmodule Absinthe.Schema.Notation do
 
       Module.register_attribute(__MODULE__, :__absinthe_type_import__, accumulate: true)
       @desc nil
-      import unquote(__MODULE__), only: :macros
+      import unquote(__MODULE__), unquote(import_opts)
       @before_compile unquote(__MODULE__)
     end
   end
@@ -30,8 +30,6 @@ defmodule Absinthe.Schema.Notation do
   @placement {:config, [under: [:field]]}
   @doc """
   Configure a subscription field.
-
-  The returned topic can be single topic, or a list of topics
 
   ## Examples
 
@@ -50,6 +48,18 @@ defmodule Absinthe.Schema.Notation do
   ```elixir
   config fn _, _ ->
     {:ok, topic: ["topic_one", "topic_two", "topic_three"]}
+  end
+  ```
+
+  Using `context_id` option to allow de-duplication of updates:
+
+  ```elixir
+  config fn _, %{context: context} ->
+    if authorized?(context) do
+      {:ok, topic: "topic_one", context_id: "authorized"}
+    else
+      {:ok, topic: "topic_one", context_id: "not-authorized"}
+    end
   end
   ```
 
@@ -526,6 +536,7 @@ defmodule Absinthe.Schema.Notation do
     |> recordable!(:resolve, @placement[:resolve])
 
     quote do
+      meta :absinthe_telemetry, true
       middleware Absinthe.Resolution, unquote(func_ast)
     end
   end
@@ -576,9 +587,11 @@ defmodule Absinthe.Schema.Notation do
   ```
   """
   defmacro arg(identifier, type, attrs) do
+    attrs = handle_arg_attrs(identifier, type, attrs)
+
     __CALLER__
     |> recordable!(:arg, @placement[:arg])
-    |> record_arg!(identifier, expand_ast(Keyword.put(attrs, :type, type), __CALLER__))
+    |> record!(Schema.InputValueDefinition, identifier, attrs, nil)
   end
 
   @doc """
@@ -587,15 +600,19 @@ defmodule Absinthe.Schema.Notation do
   See `arg/3`
   """
   defmacro arg(identifier, attrs) when is_list(attrs) do
+    attrs = handle_arg_attrs(identifier, nil, attrs)
+
     __CALLER__
     |> recordable!(:arg, @placement[:arg])
-    |> record_arg!(identifier, expand_ast(attrs, __CALLER__))
+    |> record!(Schema.InputValueDefinition, identifier, attrs, nil)
   end
 
   defmacro arg(identifier, type) do
+    attrs = handle_arg_attrs(identifier, type, [])
+
     __CALLER__
     |> recordable!(:arg, @placement[:arg])
-    |> record_arg!(identifier, expand_ast([type: type], __CALLER__))
+    |> record!(Schema.InputValueDefinition, identifier, attrs, nil)
   end
 
   # SCALARS
@@ -1175,6 +1192,7 @@ defmodule Absinthe.Schema.Notation do
     Schema.EnumTypeDefinition,
     Schema.EnumValueDefinition,
     Schema.InputObjectTypeDefinition,
+    Schema.InputValueDefinition,
     Schema.UnionTypeDefinition,
     Schema.InterfaceTypeDefinition,
     Schema.DirectiveDefinition
@@ -1185,20 +1203,11 @@ defmodule Absinthe.Schema.Notation do
     scoped_def(env, type, identifier, attrs, block)
   end
 
-  defp build_arg(identifier, attrs, env) do
-    attrs =
-      attrs
-      |> handle_deprecate
-      |> Keyword.put(:identifier, identifier)
-      |> Keyword.put(:name, to_string(identifier))
-      |> put_reference(env)
-
-    struct!(Schema.InputValueDefinition, attrs)
-  end
-
-  def record_arg!(env, identifier, attrs) do
-    arg = build_arg(identifier, Keyword.put(attrs, :module, env.module), env)
-    put_attr(env.module, arg)
+  def handle_arg_attrs(identifier, type, raw_attrs) do
+    raw_attrs
+    |> Keyword.put_new(:name, to_string(identifier))
+    |> Keyword.put_new(:type, type)
+    |> handle_deprecate
   end
 
   @doc false
@@ -1674,8 +1683,12 @@ defmodule Absinthe.Schema.Notation do
     [{Absinthe.Middleware.MapGet, identifier}]
   end
 
-  def __ensure_middleware__(middleware, _field, _object) do
-    middleware
+  def __ensure_middleware__(middleware, field, _object) do
+    if Absinthe.Type.meta(field, :absinthe_telemetry) do
+      [{Absinthe.Middleware.Telemetry, []} | middleware]
+    else
+      middleware
+    end
   end
 
   defp reverse_with_descs(attrs, descs, acc \\ [])

@@ -27,10 +27,6 @@ defmodule Absinthe.Phase.Document.Result do
     |> maybe_add_continuations(blueprint.execution.result)
   end
 
-  defp format_result(:execution_failed) do
-    %{data: nil}
-  end
-
   defp format_result({:ok, {data, []}}) do
     %{data: data}
   end
@@ -43,10 +39,6 @@ defmodule Absinthe.Phase.Document.Result do
   defp format_result({:validation_failed, errors}) do
     errors = errors |> Enum.uniq() |> Enum.map(&format_error/1)
     %{errors: errors}
-  end
-
-  defp format_result({:parse_failed, error}) do
-    %{errors: [format_error(error)]}
   end
 
   defp data(%{errors: [_ | _] = field_errors}, errors), do: {nil, field_errors ++ errors}

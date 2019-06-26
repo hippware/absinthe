@@ -1,5 +1,5 @@
-defmodule Absinthe.Phase.Validation.KnownDirectivesTest do
-  @phase Absinthe.Phase.Validation.KnownDirectives
+defmodule Absinthe.Phase.Document.Validation.KnownDirectivesTest do
+  @phase Absinthe.Phase.Document.Validation.KnownDirectives
 
   use Absinthe.ValidationPhaseCase,
     phase: @phase,
@@ -10,7 +10,7 @@ defmodule Absinthe.Phase.Validation.KnownDirectivesTest do
   def unknown_directive(name, line) do
     bad_value(
       Blueprint.Directive,
-      "Unknown directive.",
+      "Unknown directive `#{name}'.",
       line,
       name: name
     )
@@ -19,7 +19,7 @@ defmodule Absinthe.Phase.Validation.KnownDirectivesTest do
   def misplaced_directive(name, placement, line) do
     bad_value(
       Blueprint.Directive,
-      "May not be used on #{placement}.",
+      "Directive `#{name}' may not be used on #{placement}.",
       line,
       name: name
     )
@@ -140,8 +140,8 @@ defmodule Absinthe.Phase.Validation.KnownDirectivesTest do
     )
   end
 
+  @tag :pending
   describe "within schema language" do
-    @tag :pending_schema
     test "with well placed directives" do
       assert_passes_validation(
         """
@@ -173,7 +173,7 @@ defmodule Absinthe.Phase.Validation.KnownDirectivesTest do
       )
     end
 
-    @tag :pending_schema
+    @tag :pending
     test "with misplaced directives" do
       assert_fails_validation(
         """
