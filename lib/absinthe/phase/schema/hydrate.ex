@@ -62,10 +62,6 @@ defmodule Absinthe.Phase.Schema.Hydrate do
     apply_hydrations(node, hydrations, hydrator)
   end
 
-  defp hydrate_node(node, _ancestors, _schema, _hydrator) do
-    node
-  end
-
   defp apply_hydrations(node, hydrations, hydrator) do
     hydrations
     |> List.wrap()
@@ -82,6 +78,10 @@ defmodule Absinthe.Phase.Schema.Hydrate do
 
   def apply_hydration(node, {:resolve, resolver}) do
     %{node | middleware: [{Absinthe.Resolution, resolver}]}
+  end
+
+  def apply_hydration(node, {:resolve_type, resolve_type}) do
+    %{node | resolve_type: resolve_type}
   end
 
   @hydration_level1 [
