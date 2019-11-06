@@ -1,7 +1,7 @@
 defmodule Absinthe.Mixfile do
   use Mix.Project
 
-  @version "1.5.0-beta.1"
+  @version "1.5.0-beta.2"
 
   def project do
     [
@@ -72,7 +72,7 @@ defmodule Absinthe.Mixfile do
       {:benchee, ">= 0.0.0", only: :dev},
       {:dialyxir, "~> 1.0.0-rc.6", only: [:dev], runtime: false},
       {:phoenix_pubsub, ">= 0.0.0", only: :test},
-      {:mix_test_watch, "~> 0.4.1", only: [:test, :dev]}
+      {:mix_test_watch, "~> 0.4.1", only: [:test]}
     ]
   end
 
@@ -106,6 +106,7 @@ defmodule Absinthe.Mixfile do
       "guides/importing-fields.md",
       "guides/variables.md",
       "guides/introspection.md",
+      "guides/telemetry.md",
       "guides/deprecation.md",
       "guides/adapters.md",
       "guides/complexity-analysis.md",

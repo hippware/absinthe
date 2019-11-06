@@ -409,6 +409,7 @@ defmodule Absinthe.Execution.SubscriptionTest do
     assert String.contains?(error_log, "boom")
   end
 
+  @tag :pending
   test "different subscription docs are batched together" do
     opts = [context: %{test_pid: self()}]
 
@@ -584,9 +585,9 @@ defmodule Absinthe.Execution.SubscriptionTest do
       context.test,
       [
         [:absinthe, :execute, :operation, :start],
-        [:absinthe, :execute, :operation],
+        [:absinthe, :execute, :operation, :stop],
         [:absinthe, :subscription, :publish, :start],
-        [:absinthe, :subscription, :publish]
+        [:absinthe, :subscription, :publish, :stop]
       ],
       fn event, measurements, metadata, config ->
         send(self(), {event, measurements, metadata, config})
@@ -603,7 +604,7 @@ defmodule Absinthe.Execution.SubscriptionTest do
              )
 
     assert_receive {[:absinthe, :execute, :operation, :start], _, %{id: id} = _meta, _config}
-    assert_receive {[:absinthe, :execute, :operation], _, %{id: ^id} = _meta, _config}
+    assert_receive {[:absinthe, :execute, :operation, :stop], _, %{id: ^id} = _meta, _config}
 
     Absinthe.Subscription.publish(PubSub, "foo", thing: client_id)
     assert_receive({:broadcast, msg})
@@ -615,7 +616,7 @@ defmodule Absinthe.Execution.SubscriptionTest do
            } == msg
 
     assert_receive {[:absinthe, :subscription, :publish, :start], _, %{id: id} = _meta, _config}
-    assert_receive {[:absinthe, :subscription, :publish], _, %{id: ^id} = _meta, _config}
+    assert_receive {[:absinthe, :subscription, :publish, :stop], _, %{id: ^id} = _meta, _config}
 
     :telemetry.detach(context.test)
   end

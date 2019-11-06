@@ -30,8 +30,8 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
 
       {:replace, blueprint,
        [
-         {Phase.Subscription.Result, [topic: subscription_id, catchup: catchup] ++ options},
-         {Phase.Telemetry, [:execute, :operation, options]}
+         {Phase.Subscription.Result, topic: subscription_id, catchup: catchup},
+         {Phase.Telemetry, [:execute, :operation, :stop, options]}
        ]}
     else
       {:error, error} ->
@@ -158,7 +158,7 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
     case config[:document_id] do
       nil ->
         binary =
-          {blueprint.input, options[:variables]}
+          {blueprint.source || blueprint.input, options[:variables] || %{}}
           |> :erlang.term_to_binary()
 
         :crypto.hash(:sha256, binary)

@@ -72,16 +72,66 @@ defmodule Absinthe.Phase.Schema.Hydrate do
 
   @impl Absinthe.Schema.Hydrator
 
+  def apply_hydration(node, {:meta, keyword_list}) when is_list(keyword_list) do
+    %{node | __private__: Keyword.put(node.__private__, :meta, keyword_list)}
+  end
+
   def apply_hydration(node, {:description, text}) do
     %{node | description: text}
   end
 
-  def apply_hydration(node, {:resolve, resolver}) do
+  def apply_hydration(
+        %Blueprint.Schema.FieldDefinition{} = node,
+        {:resolve, resolver}
+      ) do
     %{node | middleware: [{Absinthe.Resolution, resolver}]}
   end
 
-  def apply_hydration(node, {:resolve_type, resolve_type}) do
+  def apply_hydration(
+        %Blueprint.Schema.FieldDefinition{} = node,
+        {:middleware, {_module, _opts} = middleware}
+      ) do
+    %{node | middleware: [middleware]}
+  end
+
+  def apply_hydration(
+        %Blueprint.Schema.FieldDefinition{} = node,
+        {:complexity, complexity}
+      )
+      when is_integer(complexity) do
+    %{node | complexity: complexity}
+  end
+
+  def apply_hydration(
+        %Blueprint.Schema.ScalarTypeDefinition{} = node,
+        {:parse, parse}
+      )
+      when is_function(parse) do
+    %{node | parse: parse}
+  end
+
+  def apply_hydration(
+        %Blueprint.Schema.ScalarTypeDefinition{} = node,
+        {:serialize, serialize}
+      )
+      when is_function(serialize) do
+    %{node | serialize: serialize}
+  end
+
+  def apply_hydration(
+        %Blueprint.Schema.InterfaceTypeDefinition{} = node,
+        {:resolve_type, resolve_type}
+      )
+      when is_function(resolve_type) do
     %{node | resolve_type: resolve_type}
+  end
+
+  def apply_hydration(
+        %Blueprint.Schema.ObjectTypeDefinition{} = node,
+        {:is_type_of, is_type_of}
+      )
+      when is_function(is_type_of) do
+    %{node | is_type_of: is_type_of}
   end
 
   @hydration_level1 [
