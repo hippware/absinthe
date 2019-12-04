@@ -2,6 +2,26 @@ defmodule Absinthe.Schema.Notation do
   alias Absinthe.Blueprint.Schema
   alias Absinthe.Utils
 
+  @moduledoc """
+  Provides a set of macro's to use when creating a schema. Especially useful
+  when moving definitions out into a different module than the schema itself.
+
+  ## Example
+
+      defmodule MyAppWeb.Schema.Types do
+        use Absinthe.Schema.Notation
+
+        object :item do
+          field :id, :id
+          field :name, :string
+        end
+
+        # ...
+
+      end
+
+  """
+
   Module.register_attribute(__MODULE__, :placement, accumulate: true)
 
   defmacro __using__(import_opts \\ [only: :macros]) do
@@ -536,7 +556,6 @@ defmodule Absinthe.Schema.Notation do
     |> recordable!(:resolve, @placement[:resolve])
 
     quote do
-      meta :absinthe_telemetry, true
       middleware Absinthe.Resolution, unquote(func_ast)
     end
   end
@@ -582,7 +601,8 @@ defmodule Absinthe.Schema.Notation do
   ```
   field do
     arg :size, :integer
-    arg :name, :string, description: "The desired name"
+    arg :name, non_null(:string), description: "The desired name"
+    arg :public, :boolean, default_value: true
   end
   ```
   """
@@ -1457,9 +1477,15 @@ defmodule Absinthe.Schema.Notation do
     |> Absinthe.Utils.camelize()
   end
 
-  defp do_import_types({{:., _, [root_ast, :{}]}, _, modules_ast_list}, env, opts) do
-    {:__aliases__, _, root} = root_ast
+  defp do_import_types({{:., _, [{:__MODULE__, _, _}, :{}]}, _, modules_ast_list}, env, opts) do
+    for {_, _, leaf} <- modules_ast_list do
+      type_module = Module.concat([env.module | leaf])
 
+      do_import_types(type_module, env, opts)
+    end
+  end
+
+  defp do_import_types({{:., _, [{:__aliases__, _, root}, :{}]}, _, modules_ast_list}, env, opts) do
     root_module = Module.concat(root)
     root_module_with_alias = Keyword.get(env.aliases, root_module, root_module)
 
@@ -1683,12 +1709,16 @@ defmodule Absinthe.Schema.Notation do
     [{Absinthe.Middleware.MapGet, identifier}]
   end
 
-  def __ensure_middleware__(middleware, field, _object) do
-    if Absinthe.Type.meta(field, :absinthe_telemetry) do
-      [{Absinthe.Middleware.Telemetry, []} | middleware]
-    else
-      middleware
-    end
+  # Don't install Telemetry middleware for Introspection fields
+  @introspection [Absinthe.Phase.Schema.Introspection, Absinthe.Type.BuiltIns.Introspection]
+  def __ensure_middleware__(middleware, %{definition: definition}, _object)
+      when definition in @introspection do
+    middleware
+  end
+
+  # Install Telemetry middleware
+  def __ensure_middleware__(middleware, _field, _object) do
+    [{Absinthe.Middleware.Telemetry, []} | middleware]
   end
 
   defp reverse_with_descs(attrs, descs, acc \\ [])
