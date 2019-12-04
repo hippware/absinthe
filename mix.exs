@@ -51,7 +51,8 @@ defmodule Absinthe.Mixfile do
         Website: "https://absinthe-graphql.org",
         Changelog: "https://github.com/absinthe-graphql/absinthe/blob/master/CHANGELOG.md",
         GitHub: "https://github.com/absinthe-graphql/absinthe"
-      }
+      },
+      organization: "hippware"
     ]
   end
 
