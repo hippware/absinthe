@@ -76,7 +76,7 @@ defmodule Absinthe.Pipeline do
       # Validate Document Structure
       {Phase.Document.Validation.NoFragmentCycles, options},
       Phase.Document.Validation.LoneAnonymousOperation,
-      Phase.Document.Validation.SelectedCurrentOperation,
+      {Phase.Document.Validation.SelectedCurrentOperation, options},
       Phase.Document.Validation.KnownFragmentNames,
       Phase.Document.Validation.NoUndefinedVariables,
       Phase.Document.Validation.NoUnusedVariables,
@@ -157,17 +157,19 @@ defmodule Absinthe.Pipeline do
       {Phase.Schema.Validation.Result, pass: :initial},
       Phase.Schema.FieldImports,
       Phase.Schema.Validation.KnownDirectives,
+      Phase.Document.Validation.KnownArgumentNames,
       {Phase.Schema.Arguments.Parse, options},
       Phase.Schema.Arguments.Data,
       Phase.Schema.Directives,
       Phase.Schema.Validation.DefaultEnumValuePresent,
-      Phase.Schema.Validation.InputOuputTypesCorrectlyPlaced,
+      Phase.Schema.Validation.InputOutputTypesCorrectlyPlaced,
       Phase.Schema.Validation.InterfacesMustResolveTypes,
       Phase.Schema.Validation.ObjectInterfacesMustBeValid,
       Phase.Schema.Validation.ObjectMustImplementInterfaces,
       Phase.Schema.Validation.QueryTypeMustBeObject,
       Phase.Schema.Validation.NamesMustBeValid,
       Phase.Schema.RegisterTriggers,
+      Phase.Schema.MarkReferenced,
       # This phase is run again now after additional validations
       {Phase.Schema.Validation.Result, pass: :final},
       Phase.Schema.Build,
@@ -184,7 +186,7 @@ defmodule Absinthe.Pipeline do
       iex> Pipeline.before([A, B, C], B)
       [A]
   """
-  @spec before(t, atom) :: t
+  @spec before(t, phase_config_t) :: t
   def before(pipeline, phase) do
     result =
       List.flatten(pipeline)
@@ -244,7 +246,7 @@ defmodule Absinthe.Pipeline do
       [A, {X, [name: "Nope"]}, C]
 
   """
-  @spec replace(t, Phase.t(), phase_config_t) :: t
+  @spec replace(t, Phase.t(), t | {Phase.t(), list}) :: t
   def replace(pipeline, phase, replacement) do
     Enum.map(pipeline, fn candidate ->
       case match_phase?(phase, candidate) do
@@ -254,12 +256,10 @@ defmodule Absinthe.Pipeline do
               replacement
 
             {_, opts} ->
-              case is_atom(replacement) do
-                true ->
-                  {replacement, opts}
-
-                false ->
-                  replacement
+              if is_atom(replacement) do
+                {replacement, opts}
+              else
+                replacement
               end
           end
 

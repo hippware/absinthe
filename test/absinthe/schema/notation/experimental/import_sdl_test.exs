@@ -442,9 +442,9 @@ defmodule Absinthe.Schema.Notation.Experimental.ImportSdlTest do
     end
   end
 
-  describe "Absinthe.Schema.used_types/1" do
+  describe "Absinthe.Schema.referenced_types/1" do
     test "works" do
-      assert Absinthe.Schema.used_types(Definition)
+      assert Absinthe.Schema.referenced_types(Definition)
     end
   end
 
@@ -489,6 +489,65 @@ defmodule Absinthe.Schema.Notation.Experimental.ImportSdlTest do
       assert type.fields.green255.default_value == 0
       assert type.fields.blue255.default_value == 0
     end
+  end
+
+  test "Keyword extend not yet supported" do
+    schema = """
+    defmodule KeywordExtend do
+      use Absinthe.Schema
+
+      import_sdl "
+      type Movie {
+        title: String!
+      }
+
+      extend type Movie {
+        year: Int
+      }
+      "
+    end
+    """
+
+    error = ~r/Keyword `extend` is not yet supported/
+
+    assert_raise(Absinthe.Schema.Notation.Error, error, fn ->
+      Code.eval_string(schema)
+    end)
+  end
+
+  test "Validate known directive arguments in SDL schema" do
+    schema = """
+    defmodule SchemaWithDirectivesWithNestedArgs do
+      use Absinthe.Schema
+
+      defmodule Directives do
+        use Absinthe.Schema.Prototype
+
+        directive :some_directive do
+          on [:field_definition]
+        end
+      end
+
+      @prototype_schema Directives
+
+      "
+      type Widget {
+        name: String @some_directive(a: { b: {} })
+      }
+
+      type Query {
+        widgets: [Widget!]
+      }
+      "
+      |> import_sdl
+    end
+    """
+
+    error = ~r/Unknown argument "a" on directive "@some_directive"./
+
+    assert_raise(Absinthe.Schema.Error, error, fn ->
+      Code.eval_string(schema)
+    end)
   end
 
   def handle_event(event, measurements, metadata, config) do

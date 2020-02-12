@@ -85,12 +85,7 @@ defmodule Absinthe.Phase.Schema do
   end
 
   defp set_schema_node(%Blueprint.Directive{name: name} = node, _parent, schema, adapter) do
-    schema_node =
-      name
-      |> adapter.to_internal_name(:directive)
-      |> schema.__absinthe_directive__
-
-    %{node | schema_node: schema_node}
+    %{node | schema_node: find_schema_directive(name, schema, adapter)}
   end
 
   defp set_schema_node(
@@ -123,12 +118,7 @@ defmodule Absinthe.Phase.Schema do
       type_reference
       |> type_reference_to_type(schema)
 
-    wrapped
-    |> Type.unwrap()
-    |> case do
-      nil -> node
-      _ -> %{node | schema_node: wrapped}
-    end
+    %{node | schema_node: wrapped}
   end
 
   defp set_schema_node(node, %{schema_node: nil}, _, _) do
@@ -225,6 +215,14 @@ defmodule Absinthe.Phase.Schema do
     arguments
     |> Map.values()
     |> Enum.find(&match?(%{name: ^internal_name}, &1))
+  end
+
+  # Given a name, lookup a schema directive
+  @spec find_schema_directive(String.t(), Absinthe.Schema.t(), Absinthe.Adapter.t()) ::
+          nil | Type.Directive.t()
+  defp find_schema_directive(name, schema, adapter) do
+    internal_name = adapter.to_internal_name(name, :directive)
+    schema.__absinthe_directive__(internal_name)
   end
 
   # Given a schema type, lookup a child field definition

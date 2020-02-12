@@ -110,6 +110,7 @@ defmodule Absinthe.Schema do
       defdelegate __absinthe_type__(name), to: __MODULE__.Compiled
       defdelegate __absinthe_directive__(name), to: __MODULE__.Compiled
       defdelegate __absinthe_types__(), to: __MODULE__.Compiled
+      defdelegate __absinthe_types__(group), to: __MODULE__.Compiled
       defdelegate __absinthe_directives__(), to: __MODULE__.Compiled
       defdelegate __absinthe_interface_implementors__(), to: __MODULE__.Compiled
       defdelegate __absinthe_prototype_schema__(), to: __MODULE__.Compiled
@@ -531,15 +532,19 @@ defmodule Absinthe.Schema do
   @doc """
   Get all types that are used by an operation
   """
+  @deprecated "Use Absinthe.Schema.referenced_types/1 instead"
   @spec used_types(t) :: [Type.t()]
   def used_types(schema) do
-    [:query, :mutation, :subscription]
-    |> Enum.map(&lookup_type(schema, &1))
-    |> Enum.concat(directives(schema))
-    |> Enum.filter(&(!is_nil(&1)))
-    |> Enum.flat_map(&Type.referenced_types(&1, schema))
-    |> MapSet.new()
-    |> Enum.map(&Schema.lookup_type(schema, &1))
+    referenced_types(schema)
+  end
+
+  @doc """
+  Get all types that are referenced by an operation
+  """
+  @spec referenced_types(t) :: [Type.t()]
+  def referenced_types(schema) do
+    schema
+    |> Schema.types()
     |> Enum.filter(&(!Type.introspection?(&1)))
   end
 
@@ -555,6 +560,9 @@ defmodule Absinthe.Schema do
 
   @doc """
   Converts a schema to an SDL string
+
+  Per the spec, only types that are actually referenced directly or transitively from
+  the root query, subscription, or mutation objects are included.
 
   ## Example
 

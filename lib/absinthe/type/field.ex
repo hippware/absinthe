@@ -11,7 +11,6 @@ defmodule Absinthe.Type.Field do
 
   alias Absinthe.Type
   alias Absinthe.Type.Deprecation
-  alias Absinthe.Schema
 
   use Type.Fetch
 
@@ -218,20 +217,4 @@ defmodule Absinthe.Type.Field do
 
   @doc false
   defdelegate functions, to: Absinthe.Blueprint.Schema.FieldDefinition
-
-  defimpl Absinthe.Traversal.Node do
-    def children(node, traversal) do
-      found = Schema.lookup_type(traversal.context, node.type)
-
-      if found do
-        [found | node.args |> Map.values()]
-      else
-        type_names = traversal.context.types.by_identifier |> Map.keys() |> Enum.join(", ")
-
-        raise "Unknown Absinthe type for field `#{node.name}': (#{node.type |> Type.unwrap()} not in available types, #{
-                type_names
-              })"
-      end
-    end
-  end
 end

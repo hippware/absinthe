@@ -47,6 +47,7 @@ defmodule Absinthe.Adapter.LanguageConventions do
   """
 
   @doc "Converts a camelCase to snake_case"
+  @impl Absinthe.Adapter
   def to_internal_name(nil, _role) do
     nil
   end
@@ -55,16 +56,13 @@ defmodule Absinthe.Adapter.LanguageConventions do
     "__" <> to_internal_name(camelized_name, role)
   end
 
-  def to_internal_name(camelized_name, :operation) do
-    camelized_name
-  end
-
-  def to_internal_name(camelized_name, _role) do
+  def to_internal_name(camelized_name, _role) when is_binary(camelized_name) do
     camelized_name
     |> Macro.underscore()
   end
 
   @doc "Converts a snake_case name to camelCase"
+  @impl Absinthe.Adapter
   def to_external_name(nil, _role) do
     nil
   end
@@ -77,7 +75,7 @@ defmodule Absinthe.Adapter.LanguageConventions do
     name |> Utils.camelize()
   end
 
-  def to_external_name(underscored_name, _role) do
+  def to_external_name(underscored_name, _role) when is_binary(underscored_name) do
     underscored_name
     |> Utils.camelize(lower: true)
   end
